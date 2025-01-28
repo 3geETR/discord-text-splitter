@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Text Splitter | Modern</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #5865F2;
+            --background: #1E1F22;
+            --surface: #2B2D31;
+            --text: #DBDEE1;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .title {
+            font-size: 2.5rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .main-card {
+            background: var(--surface);
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .split-button {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 0.5rem;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .split-button:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        .chunks-container {
+            margin-top: 2rem;
+        }
+
+        .chunk-card {
+            background: var(--surface);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: transform 0.2s;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .chunk-card:hover {
+            transform: translateY(-3px);
+        }
+
+        .chunk-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .chunk-number {
+            color: var(--primary);
+            font-weight: 600;
+            font-size: 1.2rem;
+        }
+
+        .chunk-stats {
+            display: flex;
+            gap: 1rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .preview-text {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            font-family: monospace;
+            margin-top: 1rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .copy-badge {
+            background: var(--primary);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .stats {
+                grid-template-columns: 1fr;
+            }
+            
+            .stat-value {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">Discord Text Splitter</h1>
+        </div>
+
+        <div class="main-card">
+            <div class="stats">
+                <div class="stat-item">
+                    <div class="stat-label">Total Characters</div>
+                    <div class="stat-value" id="textLengthLabel">-</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Total Chunks</div>
+                    <div class="stat-value" id="numberOfChunksLabel">-</div>
+                </div>
+            </div>
+
+            <button class="split-button" id="splitButton">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-clipboard">
+                    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                </svg>
+                Split Text from Clipboard
+            </button>
+
+            <div class="chunks-container" id="copyChunkButtons"></div>
+        </div>
+    </div>
+
+    <script>
+        const messageMaxLength = 2000;
+        const newlineSeparator = "\n";
+        const previewLength = 50;
+
+        let splittedText = [];
+        let copyChunkButtonCounters = [];
+
+        function rightTrim(text, toBeTrimmed) {
+            while (text.endsWith(toBeTrimmed)) {
+                text = text.slice(0, -toBeTrimmed.length);
+            }
+            return text;
+        }
+
+        function splittingIndex(text, maxLength, newline) {
+            if (text.length <= maxLength) {
+                return text.length;
+            }
+            let remainingText = text.slice(0, maxLength + 2 * newline.length);
+            while (true) {
+                let possibleIndex = remainingText.lastIndexOf(newline);
+                remainingText = remainingText.slice(0, possibleIndex);
+                if (remainingText.endsWith(newline)) {
+                    remainingText = rightTrim(remainingText, newline);
+                } else if (possibleIndex <= maxLength) {
+                    return possibleIndex;
+                }
+            }
+        }
+
+        function split(text, maxLength, newline) {
+            let splittedText = [];
+            while (text !== "") {
+                let currentSplittingIndex = splittingIndex(text, maxLength, newline);
+                splittedText.push(text.slice(0, currentSplittingIndex));
+                text = text.slice(currentSplittingIndex + newline.length);
+            }
+            return splittedText;
+        }
+
+        function preview(text) {
+            let flattenedText = text.replace(/\n/g, "⏎ ").replace(/\t/g, "  ");
+            let result = flattenedText.slice(0, previewLength);
+            if (flattenedText.length > previewLength) {
+                result += "…";
+            }
+            return result;
+        }
+
+        function updateInfoLabels(textLength, numberOfChunks) {
+            document.getElementById('textLengthLabel').textContent = textLength.toLocaleString();
+            document.getElementById('numberOfChunksLabel').textContent = numberOfChunks.toLocaleString();
+        }
+
+        function handleCopyChunkButton(chunkIndex) {
+            copyChunkButtonCounters[chunkIndex]++;
+            document.getElementById(`chunkButton${chunkIndex}`).querySelector('.copy-badge').textContent = 
+                `${copyChunkButtonCounters[chunkIndex]}x Copied`;
+            navigator.clipboard.writeText(splittedText[chunkIndex]);
+        }
+
+        function clearCopyChunkButtons() {
+            document.getElementById('copyChunkButtons').innerHTML = '';
+        }
+
+        function handleSplit() {
+            navigator.clipboard.readText().then(clipboardText => {
+                clearCopyChunkButtons();
+                splittedText = split(clipboardText, messageMaxLength, newlineSeparator);
+                copyChunkButtonCounters = new Array(splittedText.length).fill(0);
+                updateInfoLabels(clipboardText.length, splittedText.length);
+                
+                const container = document.getElementById('copyChunkButtons');
+                splittedText.forEach((chunk, index) => {
+                    const chunkCard = document.createElement('div');
+                    chunkCard.className = 'chunk-card';
+                    chunkCard.id = `chunkButton${index}`;
+                    chunkCard.innerHTML = `
+                        <div class="chunk-header">
+                            <div class="chunk-number">Chunk #${index + 1}</div>
+                            <div class="chunk-stats">
+                                <div>${chunk.length.toLocaleString()} chars</div>
+                                <div class="copy-badge">0x Copied</div>
+                            </div>
+                        </div>
+                        <div class="preview-text">${preview(chunk)}</div>
+                    `;
+                    chunkCard.onclick = () => handleCopyChunkButton(index);
+                    container.appendChild(chunkCard);
+                });
+            });
+        }
+
+        document.getElementById('splitButton').onclick = handleSplit;
+    </script>
+</body>
+</html>
